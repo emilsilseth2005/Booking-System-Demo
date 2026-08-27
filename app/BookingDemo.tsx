@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { addBooking, getOccupiedSlots, OccupiedSlot } from "@/lib/booking-store";
@@ -78,15 +78,49 @@ export function BookingDemo() {
   const [bookingError, setBookingError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const refreshOccupiedSlots = useCallback(async () => {
+    try {
+      setOccupiedSlots(await getOccupiedSlots());
+    } catch {}
+  }, []);
+
   useEffect(() => {
     getOccupiedSlots()
       .then(setOccupiedSlots)
       .catch(() => setBookingError("Kunne ikke hente ledige tider akkurat nå. Prøv igjen."));
   }, []);
 
+  useEffect(() => {
+    if (step !== 3) return;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshOccupiedSlots();
+    };
+    const interval = window.setInterval(() => void refreshOccupiedSlots(), 15_000);
+
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshOccupiedSlots, step]);
+
   const selectedService = services.find((item) => item.id === serviceId) ?? services[0];
   const selectedStaff = staff.find((item) => item.id === staffId) ?? staff[0];
   const calendar = useMemo(() => makeCalendar(month), [month]);
+  const selectedSlotIsBusy = useMemo(() => {
+    if (!selectedDate || !selectedTime) return false;
+    const key = dateKey(selectedDate);
+    const isOccupiedBy = (personId: string) => occupiedSlots.some(
+      (slot) => slot.staffId === personId && slot.date === key && slot.time === selectedTime,
+    );
+    return staffId === "any"
+      ? staff.filter((person) => person.id !== "any").every((person) => isOccupiedBy(person.id))
+      : isOccupiedBy(staffId);
+  }, [occupiedSlots, selectedDate, selectedTime, staffId]);
 
   const slotsForDate = (date: Date | null) => {
     if (!date) return [];
@@ -106,6 +140,12 @@ export function BookingDemo() {
   const chooseDate = (date: Date) => {
     setSelectedDate(date);
     setSelectedTime("");
+    setBookingError("");
+  };
+
+  const openSchedule = async () => {
+    await refreshOccupiedSlots();
+    setStep(3);
   };
 
   const reset = () => {
@@ -130,7 +170,7 @@ export function BookingDemo() {
       setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt.");
       setStep(3);
       setSelectedTime("");
-      setOccupiedSlots(await getOccupiedSlots());
+      await refreshOccupiedSlots();
       setIsSaving(false);
       return;
     }
@@ -141,7 +181,7 @@ export function BookingDemo() {
         setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt.");
         setStep(3);
         setSelectedTime("");
-        setOccupiedSlots(await getOccupiedSlots());
+        await refreshOccupiedSlots();
         return;
       }
       setStaffId(assignedStaff.id);
@@ -236,14 +276,14 @@ export function BookingDemo() {
                   </button>
                 ))}
               </div>
-              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(1)}>← Tilbake</button><button className="primary-button" type="button" onClick={() => setStep(3)}>Velg dato og tid <span>→</span></button></div>
+              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(1)}>← Tilbake</button><button className="primary-button" type="button" onClick={openSchedule}>Velg dato og tid <span>→</span></button></div>
             </section>
           )}
 
           {step === 3 && (
             <section className="step-panel calendar-panel">
               <div className="panel-heading"><div><p className="eyebrow">Steg 3 av 4</p><h2>Når passer det?</h2></div><p>Tidene oppdateres etter valgt behandler.</p></div>
-              {bookingError ? <p className="booking-error" role="alert">{bookingError}</p> : null}
+              {bookingError || selectedSlotIsBusy ? <p className="booking-error" role="alert">{selectedSlotIsBusy ? "Denne tiden ble nettopp bestilt. Velg et annet tidspunkt." : bookingError}</p> : null}
               <div className="calendar-layout">
                 <div className="calendar-card">
                   <div className="calendar-header">
@@ -269,12 +309,12 @@ export function BookingDemo() {
                   <div><p className="eyebrow">Tilgjengelige tider</p><h3>{formatDate(selectedDate)}</h3></div>
                   {!selectedDate ? <div className="empty-times"><span>↙</span><p>Velg en dato i kalenderen for å se ledige tidspunkt.</p></div> : (
                     <div className="time-grid">
-                      {slotsForDate(selectedDate).map((slot) => <button type="button" key={slot.time} disabled={slot.busy} className={selectedTime === slot.time ? "selected" : ""} onClick={() => setSelectedTime(slot.time)}>{slot.time}{slot.busy && <small>Opptatt</small>}</button>)}
+                      {slotsForDate(selectedDate).map((slot) => <button type="button" key={slot.time} disabled={slot.busy} className={selectedTime === slot.time ? "selected" : ""} onClick={() => { setSelectedTime(slot.time); setBookingError(""); }}>{slot.time}{slot.busy && <small>Opptatt</small>}</button>)}
                     </div>
                   )}
                 </div>
               </div>
-              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(2)}>← Tilbake</button><button className="primary-button" type="button" disabled={!selectedDate || !selectedTime} onClick={() => setStep(4)}>Fyll inn opplysninger <span>→</span></button></div>
+              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(2)}>← Tilbake</button><button className="primary-button" type="button" disabled={!selectedDate || !selectedTime || selectedSlotIsBusy} onClick={() => setStep(4)}>Fyll inn opplysninger <span>→</span></button></div>
             </section>
           )}
 

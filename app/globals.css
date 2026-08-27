@@ -3,7 +3,7 @@
 :root { --navy: #0f2940; --navy-2: #163d5d; --cream: #fff9d2; --paper: #fffdf0; --sky: #8cc0eb; --mist: #bfddf0; --gold: #ffc640; --peach: #ffebcc; --green: #256b4f; --line: rgba(15, 41, 64, .13); }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: #f7f5ea; color: var(--navy); font-family: var(--font-geist-sans), Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: #f7f5ea; color: var(--navy); font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }

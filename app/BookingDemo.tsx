@@ -134,12 +134,12 @@ export function BookingDemo() {
 
       <section className="booking-shell" id="booking">
         <nav className="steps" aria-label="Steg i bestillingen">
-          {[
+          {([
             [1, "Tjeneste"],
             [2, "Behandler"],
             [3, "Dato og tid"],
             [4, "Dine opplysninger"],
-          ].map(([number, label]) => (
+          ] as Array<[number, string]>).map(([number, label]) => (
             <button key={number} type="button" className={step === number ? "active" : step > number ? "complete" : ""} onClick={() => Number(number) <= step && setStep(Number(number))} disabled={Number(number) > step}>
               <span>{step > number ? "✓" : number}</span><strong>{label}</strong>
             </button>

@@ -11,7 +11,7 @@ type Service = {
   description: string;
   duration: number;
   price: number;
-  symbol: string;
+  image: string;
 };
 
 type Staff = {
@@ -24,9 +24,9 @@ type Staff = {
 };
 
 const services: Service[] = [
-  { id: "klipp", name: "Dame- og herreklipp", description: "Konsultasjon, vask, klipp og enkel styling.", duration: 60, price: 790, symbol: "✦" },
-  { id: "styling", name: "Vask og styling", description: "Vask, føn og styling til hverdag eller anledning.", duration: 45, price: 590, symbol: "∿" },
-  { id: "skjegg", name: "Skjegg og finish", description: "Forming, maskinklipp og presis finish.", duration: 30, price: 450, symbol: "⌁" },
+  { id: "klipp", name: "Dame- og herreklipp", description: "Konsultasjon, vask, klipp og enkel styling.", duration: 60, price: 790, image: "/service-images/dame-herreklipp.webp" },
+  { id: "styling", name: "Vask og styling", description: "Vask, føn og styling til hverdag eller anledning.", duration: 45, price: 590, image: "/service-images/vask-styling.webp" },
+  { id: "skjegg", name: "Skjegg og finish", description: "Forming, maskinklipp og presis finish.", duration: 30, price: 450, image: "/service-images/skjegg-finish.webp" },
 ];
 
 const staff: Staff[] = [
@@ -251,7 +251,7 @@ export function BookingDemo() {
               <div className="service-list">
                 {services.map((service) => (
                   <button className={serviceId === service.id ? "service-option selected" : "service-option"} type="button" key={service.id} onClick={() => setServiceId(service.id)}>
-                    <span className="service-symbol">{service.symbol}</span>
+                    <span className="service-symbol"><Image src={service.image} alt="" width={50} height={50} /></span>
                     <span className="service-copy"><strong>{service.name}</strong><small>{service.description}</small></span>
                     <span className="service-meta"><strong>{service.price} kr</strong><small>{service.duration} min</small></span>
                     <span className="radio-dot" />
@@ -334,7 +334,7 @@ export function BookingDemo() {
 
         <aside className="summary-card">
           <p className="eyebrow">Din bestilling</p>
-          <div className="summary-service"><span>{selectedService.symbol}</span><div><strong>{selectedService.name}</strong><small>{selectedService.duration} minutter</small></div></div>
+          <div className="summary-service"><span><Image src={selectedService.image} alt="" width={46} height={46} /></span><div><strong>{selectedService.name}</strong><small>{selectedService.duration} minutter</small></div></div>
           <dl><div><dt>Behandler</dt><dd>{selectedStaff.name}</dd></div><div><dt>Dato</dt><dd>{formatDate(selectedDate)}</dd></div><div><dt>Tid</dt><dd>{selectedTime || "Velg tid"}</dd></div></dl>
           <div className="summary-total"><span>Totalt</span><strong>{selectedService.price} kr</strong></div>
           <p className="summary-note"><span>i</span> Ingen betaling i denne demoen.</p>

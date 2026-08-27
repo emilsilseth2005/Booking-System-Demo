@@ -106,6 +106,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .customer-form input:not([type="checkbox"]) { height: 50px; }.customer-form textarea { resize: vertical; }
 .consent { display: grid !important; grid-template-columns: 18px 1fr; align-items: start; gap: 10px !important; color: rgba(15,41,64,.62); }
 .consent input { width: 18px; height: 18px; accent-color: var(--navy); }
+.honeypot { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.form-error { margin: 0; padding: 12px 14px; border: 1px solid rgba(151,42,42,.28); border-radius: 12px; background: rgba(151,42,42,.08); color: #812828; font-size: .72rem; font-weight: 700; }
 .summary-card { padding: 34px 25px; border-left: 1px solid var(--line); background: var(--navy); color: var(--cream); }
 .summary-card .eyebrow { color: var(--sky); }
 .summary-service { margin: 28px 0; padding-bottom: 28px; display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,249,210,.14); }

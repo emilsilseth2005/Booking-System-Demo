@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Booking, BookingStatus, deleteBooking, getBookings, updateBookingStatus } from "@/lib/booking-store";
 
 const statusLabels: Record<BookingStatus, string> = { upcoming: "Kommende", completed: "Fullført", cancelled: "Avbestilt" };
@@ -16,10 +17,14 @@ export function AdminDashboard() {
 
   const refresh = () => setBookings(getBookings());
   useEffect(() => {
-    refresh();
+    const timeoutId = window.setTimeout(refresh, 0);
     window.addEventListener("booking-demo-updated", refresh);
     window.addEventListener("storage", refresh);
-    return () => { window.removeEventListener("booking-demo-updated", refresh); window.removeEventListener("storage", refresh); };
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("booking-demo-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
   const visible = useMemo(() => {
@@ -41,8 +46,8 @@ export function AdminDashboard() {
   return (
     <main className="admin-page">
       <header className="admin-topbar">
-        <a className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></a>
-        <nav className="surface-switch" aria-label="Bytt visning"><a href="/">Bestill time</a><a className="active" href="/admin">Bedriftsportal</a></nav>
+        <Link className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
+        <nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" href="/admin">Bedriftsportal</Link></nav>
       </header>
 
       <div className="admin-layout">
@@ -55,7 +60,7 @@ export function AdminDashboard() {
         </aside>
 
         <section className="admin-main">
-          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><a className="new-booking-link" href="/">+ Ny bestilling</a></div>
+          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div>
           <div className="metric-grid">
             <article><span>I dag</span><strong>{todayCount}</strong><small>bestillinger</small></article>
             <article><span>Kommende</span><strong>{upcoming.length}</strong><small>aktive timer</small></article>

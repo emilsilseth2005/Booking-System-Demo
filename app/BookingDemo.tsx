@@ -1,9 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { addBooking, Booking, deleteBooking, getBookings } from "@/lib/booking-store";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { addBooking, getOccupiedSlots, OccupiedSlot } from "@/lib/booking-store";
 
 type Service = {
   id: string;
@@ -11,7 +9,7 @@ type Service = {
   description: string;
   duration: number;
   price: number;
-  image: string;
+  symbol: string;
 };
 
 type Staff = {
@@ -23,9 +21,9 @@ type Staff = {
 };
 
 const services: Service[] = [
-  { id: "klipp", name: "Dame- og herreklipp", description: "Konsultasjon, vask, klipp og enkel styling.", duration: 60, price: 790, image: "/service-images/dame-herreklipp.webp" },
-  { id: "styling", name: "Vask og styling", description: "Vask, føn og styling til hverdag eller anledning.", duration: 45, price: 590, image: "/service-images/vask-styling.webp" },
-  { id: "skjegg", name: "Skjegg og finish", description: "Forming, maskinklipp og presis finish.", duration: 30, price: 450, image: "/service-images/skjegg-finish.webp" },
+  { id: "klipp", name: "Dame- og herreklipp", description: "Konsultasjon, vask, klipp og enkel styling.", duration: 60, price: 790, symbol: "✦" },
+  { id: "styling", name: "Vask og styling", description: "Vask, føn og styling til hverdag eller anledning.", duration: 45, price: 590, symbol: "∿" },
+  { id: "skjegg", name: "Skjegg og finish", description: "Forming, maskinklipp og presis finish.", duration: 30, price: 450, symbol: "⌁" },
 ];
 
 const staff: Staff[] = [
@@ -73,24 +71,14 @@ export function BookingDemo() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [occupiedSlots, setOccupiedSlots] = useState<OccupiedSlot[]>([]);
   const [bookingError, setBookingError] = useState("");
-  const [confirmedEmail, setConfirmedEmail] = useState("");
-  const [confirmedStaffName, setConfirmedStaffName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const pendingBooking = useRef<{ fingerprint: string; id: string } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const refresh = () => setBookings(getBookings());
-    const timeoutId = window.setTimeout(refresh, 0);
-    window.addEventListener("booking-demo-updated", refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("booking-demo-updated", refresh);
-      window.removeEventListener("storage", refresh);
-    };
+    getOccupiedSlots()
+      .then(setOccupiedSlots)
+      .catch(() => setBookingError("Kunne ikke hente ledige tider akkurat nå. Prøv igjen."));
   }, []);
 
   const selectedService = services.find((item) => item.id === serviceId) ?? services[0];
@@ -99,9 +87,17 @@ export function BookingDemo() {
 
   const slotsForDate = (date: Date | null) => {
     if (!date) return [];
-    const day = date.getDate();
     const key = dateKey(date);
-    return timeOptions.map((time, index) => ({ time, busy: bookings.some((booking) => booking.status === "upcoming" && booking.date === key && booking.time === time) || (day + index + (staffId === "nora" ? 1 : 0)) % 4 === 0 }));
+    const bookableStaff = staff.filter((person) => person.id !== "any");
+    return timeOptions.map((time) => {
+      const isOccupied = (personId: string) => occupiedSlots.some((slot) => slot.staffId === personId && slot.date === key && slot.time === time);
+      return { time, busy: staffId === "any" ? bookableStaff.every((person) => isOccupied(person.id)) : isOccupied(staffId) };
+    });
+  };
+
+  const availableStaffFor = (date: Date, time: string) => {
+    const key = dateKey(date);
+    return staff.filter((person) => person.id !== "any" && !occupiedSlots.some((slot) => slot.staffId === person.id && slot.date === key && slot.time === time));
   };
 
   const chooseDate = (date: Date) => {
@@ -118,93 +114,39 @@ export function BookingDemo() {
     setSelectedTime("");
     setConfirmed(false);
     setBookingError("");
-    setConfirmedEmail("");
-    setConfirmedStaffName("");
-    setIsSubmitting(false);
-    setSubmitError("");
-    pendingBooking.current = null;
   };
 
   const submitBooking = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedDate || !selectedTime || isSubmitting) return;
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const customer = {
-      name: String(formData.get("name") ?? ""),
-      email: String(formData.get("email") ?? ""),
-      phone: String(formData.get("phone") ?? ""),
-      note: String(formData.get("note") ?? ""),
-    };
-    const booking = {
-      serviceId,
-      staffId,
-      date: dateKey(selectedDate),
-      time: selectedTime,
-      customer,
-      website: String(formData.get("website") ?? ""),
-    };
-    const fingerprint = JSON.stringify(booking);
-    const assignedStaff = staffId === "any" ? staff[(selectedDate.getDate() + timeOptions.indexOf(selectedTime)) % 2 + 1] : selectedStaff;
-
-    if (!pendingBooking.current || pendingBooking.current.fingerprint !== fingerprint) {
-      pendingBooking.current = { fingerprint, id: crypto.randomUUID() };
-    }
-
-    const bookingId = pendingBooking.current.id;
-    const saved = addBooking({
-      id: bookingId,
-      customerName: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      note: customer.note,
-      serviceId,
-      serviceName: selectedService.name,
-      staffId: assignedStaff.id,
-      staffName: assignedStaff.name,
-      date: booking.date,
-      time: selectedTime,
-      duration: selectedService.duration,
-      price: selectedService.price,
-      status: "upcoming",
-      createdAt: new Date().toISOString(),
-    });
-
-    if (!saved) {
+    if (!selectedDate || !selectedTime) return;
+    setIsSaving(true);
+    setBookingError("");
+    const data = new FormData(event.currentTarget);
+    const assignedStaff = staffId === "any" ? availableStaffFor(selectedDate, selectedTime)[0] : selectedStaff;
+    if (!assignedStaff) {
       setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt.");
       setStep(3);
       setSelectedTime("");
-      setBookings(getBookings());
+      setOccupiedSlots(await getOccupiedSlots());
+      setIsSaving(false);
       return;
     }
 
-    setBookings(getBookings());
-    setBookingError("");
-    setIsSubmitting(true);
-    setSubmitError("");
-
     try {
-      const response = await fetch("/api/bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...booking, bookingId, staffId: assignedStaff.id }),
-      });
-      const result = await response.json().catch(() => null) as { error?: string } | null;
-
-      if (!response.ok) {
-        throw new Error(result?.error || "Bekreftelsen kunne ikke sendes. Prøv igjen.");
+      const saved = await addBooking({ id: crypto.randomUUID(), customerName: String(data.get("name")), email: String(data.get("email")), phone: String(data.get("phone")), note: String(data.get("note") || ""), serviceId, serviceName: selectedService.name, staffId: assignedStaff.id, staffName: assignedStaff.name, date: dateKey(selectedDate), time: selectedTime, duration: selectedService.duration, price: selectedService.price, status: "upcoming", createdAt: new Date().toISOString() });
+      if (!saved) {
+        setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt.");
+        setStep(3);
+        setSelectedTime("");
+        setOccupiedSlots(await getOccupiedSlots());
+        return;
       }
-
-      setConfirmedEmail(customer.email.trim());
-      setConfirmedStaffName(assignedStaff.name);
+      setStaffId(assignedStaff.id);
       setConfirmed(true);
-    } catch (error) {
-      deleteBooking(bookingId);
-      setBookings(getBookings());
-      setSubmitError(error instanceof Error ? error.message : "Bekreftelsen kunne ikke sendes. Prøv igjen.");
+    } catch {
+      setBookingError("Bestillingen kunne ikke lagres. Kontroller forbindelsen og prøv igjen.");
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
@@ -213,13 +155,13 @@ export function BookingDemo() {
       <main className="confirmation-page">
         <section className="confirmation-card" aria-live="polite">
           <div className="confirmation-mark">✓</div>
-          <p className="eyebrow">Bekreftelsen er sendt</p>
+          <p className="eyebrow">Bestillingen er registrert</p>
           <h1>Da er tiden din satt av.</h1>
-          <p className="confirmation-lead">Vi har sendt bookingdetaljene til {confirmedEmail}, varslet bedriften på e-post og lagret bestillingen lokalt på denne enheten.</p>
+          <p className="confirmation-lead">Dette er en demo. I en ferdig løsning ville kunden fått bekreftelse på e-post eller SMS nå.</p>
           <div className="confirmation-details">
             <div><span>Tjeneste</span><strong>{selectedService.name}</strong></div>
             <div><span>Tidspunkt</span><strong>{formatDate(selectedDate)} kl. {selectedTime}</strong></div>
-            <div><span>Behandler</span><strong>{confirmedStaffName || selectedStaff.name}</strong></div>
+            <div><span>Behandler</span><strong>{selectedStaff.name}</strong></div>
             <div><span>Pris</span><strong>{selectedService.price} kr</strong></div>
           </div>
           <button className="primary-button" type="button" onClick={reset}>Lag en ny bestilling <span>↗</span></button>
@@ -235,7 +177,7 @@ export function BookingDemo() {
           <span className="business-mark">SN</span>
           <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
         </a>
-        <nav className="surface-switch" aria-label="Bytt visning"><Link className="active" href="/">Bestill time</Link><Link href="/admin">Bedriftsportal</Link></nav>
+        <nav className="surface-switch" aria-label="Bytt visning"><a className="active" href="/">Bestill time</a><a href="/admin">Bedriftsportal</a></nav>
       </header>
 
       <section className="intro">
@@ -266,7 +208,7 @@ export function BookingDemo() {
               <div className="service-list">
                 {services.map((service) => (
                   <button className={serviceId === service.id ? "service-option selected" : "service-option"} type="button" key={service.id} onClick={() => setServiceId(service.id)}>
-                    <span className="service-symbol"><Image src={service.image} alt="" width={50} height={50} /></span>
+                    <span className="service-symbol">{service.symbol}</span>
                     <span className="service-copy"><strong>{service.name}</strong><small>{service.description}</small></span>
                     <span className="service-meta"><strong>{service.price} kr</strong><small>{service.duration} min</small></span>
                     <span className="radio-dot" />
@@ -333,15 +275,13 @@ export function BookingDemo() {
 
           {step === 4 && (
             <section className="step-panel">
-              <div className="panel-heading"><div><p className="eyebrow">Steg 4 av 4</p><h2>Hvem bestiller?</h2></div><p>Du får en bekreftelse på e-post når bestillingen er sendt.</p></div>
+              <div className="panel-heading"><div><p className="eyebrow">Steg 4 av 4</p><h2>Hvem bestiller?</h2></div><p>Opplysningene brukes kun til denne demoen.</p></div>
               <form className="customer-form" onSubmit={submitBooking}>
                 <label><span>Navn</span><input name="name" type="text" placeholder="Ola Nordmann" required /></label>
                 <div className="form-row"><label><span>E-post</span><input name="email" type="email" placeholder="ola@eksempel.no" required /></label><label><span>Telefon</span><input name="phone" type="tel" placeholder="999 99 999" required /></label></div>
                 <label><span>Kommentar <small>valgfritt</small></span><textarea name="note" placeholder="Er det noe vi bør vite før timen?" rows={3} /></label>
-                <label className="honeypot" aria-hidden="true"><span>Nettside</span><input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
-                <label className="consent"><input type="checkbox" required /><span>Jeg godtar at opplysningene brukes til å behandle bestillingen og sende bekreftelse på e-post.</span></label>
-                {submitError && <p className="form-error" role="alert">{submitError}</p>}
-                <div className="panel-footer"><button className="back-button" type="button" disabled={isSubmitting} onClick={() => setStep(3)}>← Tilbake</button><button className="primary-button" type="submit" disabled={isSubmitting} aria-busy={isSubmitting}>{isSubmitting ? "Sender bekreftelse …" : "Bekreft bestilling"} <span>{isSubmitting ? "" : "✓"}</span></button></div>
+                <label className="consent"><input type="checkbox" required /><span>Jeg godtar at opplysningene brukes til å behandle bestillingen.</span></label>
+                <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(3)}>← Tilbake</button><button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? "Lagrer …" : "Bekreft bestilling"} <span>✓</span></button></div>
               </form>
             </section>
           )}
@@ -349,14 +289,14 @@ export function BookingDemo() {
 
         <aside className="summary-card">
           <p className="eyebrow">Din bestilling</p>
-          <div className="summary-service"><span><Image src={selectedService.image} alt="" width={46} height={46} /></span><div><strong>{selectedService.name}</strong><small>{selectedService.duration} minutter</small></div></div>
+          <div className="summary-service"><span>{selectedService.symbol}</span><div><strong>{selectedService.name}</strong><small>{selectedService.duration} minutter</small></div></div>
           <dl><div><dt>Behandler</dt><dd>{selectedStaff.name}</dd></div><div><dt>Dato</dt><dd>{formatDate(selectedDate)}</dd></div><div><dt>Tid</dt><dd>{selectedTime || "Velg tid"}</dd></div></dl>
           <div className="summary-total"><span>Totalt</span><strong>{selectedService.price} kr</strong></div>
           <p className="summary-note"><span>i</span> Ingen betaling i denne demoen.</p>
         </aside>
       </section>
 
-      <footer><span>Booking System Demo</span><span>Bestillinger lagres lokalt · Bekreftelse sendes på e-post</span></footer>
+      <footer><span>Booking System Demo</span><span>Bestillinger lagres sikkert på serveren</span></footer>
     </main>
   );
 }

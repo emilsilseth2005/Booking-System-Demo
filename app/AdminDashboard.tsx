@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { Booking, BookingStatus, deleteBooking, getBookings, updateBookingStatus } from "@/lib/booking-store";
+import { supabase } from "@/lib/supabase";
 
 const statusLabels: Record<BookingStatus, string> = { upcoming: "Kommende", completed: "Fullført", cancelled: "Avbestilt" };
 
@@ -11,21 +12,79 @@ function prettyDate(value: string) {
 }
 
 export function AdminDashboard() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isManager, setIsManager] = useState<boolean | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<"all" | BookingStatus>("upcoming");
   const [query, setQuery] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [dataError, setDataError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const refresh = () => setBookings(getBookings());
-  useEffect(() => {
-    const timeoutId = window.setTimeout(refresh, 0);
-    window.addEventListener("booking-demo-updated", refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("booking-demo-updated", refresh);
-      window.removeEventListener("storage", refresh);
-    };
+  const loadManagerAccess = useCallback(async (activeUser: User | null) => {
+    setUser(activeUser);
+    if (!activeUser) {
+      setIsManager(null);
+      setBookings([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", activeUser.id)
+      .single();
+
+    const manager = !profileError && profile?.role === "manager";
+    setIsManager(manager);
+    if (manager) {
+      try {
+        setBookings(await getBookings());
+        setDataError("");
+      } catch {
+        setDataError("Kunne ikke hente bestillingene fra serveren.");
+      }
+    }
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => loadManagerAccess(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => loadManagerAccess(session?.user ?? null), 0);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [loadManagerAccess]);
+
+  const refresh = async () => {
+    try {
+      setBookings(await getBookings());
+      setDataError("");
+    } catch {
+      setDataError("Kunne ikke oppdatere bestillingene.");
+    }
+  };
+
+  const signIn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSigningIn(true);
+    setAuthError("");
+    const form = new FormData(event.currentTarget);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: String(form.get("email")).trim(),
+      password: String(form.get("password")),
+    });
+    if (error) setAuthError("Innloggingen mislyktes. Kontroller e-post og passord.");
+    setIsSigningIn(false);
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setBookings([]);
+  };
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -40,14 +99,60 @@ export function AdminDashboard() {
   const todayCount = upcoming.filter((booking) => booking.date === todayKey).length;
   const revenue = bookings.filter((booking) => booking.status !== "cancelled").reduce((sum, booking) => sum + booking.price, 0);
 
-  const changeStatus = (id: string, status: BookingStatus) => { updateBookingStatus(id, status); refresh(); };
-  const remove = (id: string) => { deleteBooking(id); refresh(); };
+  const changeStatus = async (id: string, status: BookingStatus) => {
+    try {
+      await updateBookingStatus(id, status);
+      await refresh();
+    } catch {
+      setDataError(status === "upcoming" ? "Tiden er allerede opptatt." : "Statusen kunne ikke endres.");
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Vil du slette denne bestillingen permanent?")) return;
+    try {
+      await deleteBooking(id);
+      await refresh();
+    } catch {
+      setDataError("Bestillingen kunne ikke slettes.");
+    }
+  };
+
+  if (isLoading) {
+    return <main className="admin-auth-page"><div className="admin-auth-card"><span className="auth-loader" /><p>Kobler til bedriftsportalen …</p></div></main>;
+  }
+
+  if (!user) {
+    return (
+      <main className="admin-auth-page">
+        <section className="admin-auth-card">
+          <a className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></a>
+          <div><p className="eyebrow">Sikker innlogging</p><h1>Se og administrer bestillinger.</h1><p>Logg inn med lederbrukeren fra CRM-systemet.</p></div>
+          <form onSubmit={signIn}>
+            <label><span>E-post</span><input name="email" type="email" autoComplete="email" required /></label>
+            <label><span>Passord</span><input name="password" type="password" autoComplete="current-password" required /></label>
+            {authError ? <p className="booking-error" role="alert">{authError}</p> : null}
+            <button className="primary-button" type="submit" disabled={isSigningIn}>{isSigningIn ? "Logger inn …" : "Logg inn"} <span>→</span></button>
+          </form>
+          <a className="back-to-booking" href="/">← Tilbake til bestillingssiden</a>
+        </section>
+      </main>
+    );
+  }
+
+  if (!isManager) {
+    return (
+      <main className="admin-auth-page">
+        <section className="admin-auth-card"><p className="eyebrow">Ingen tilgang</p><h1>Denne brukeren er ikke leder.</h1><p>Bedriftsportalen er begrenset til ledelsen.</p><button className="primary-button" type="button" onClick={signOut}>Logg ut</button></section>
+      </main>
+    );
+  }
 
   return (
     <main className="admin-page">
       <header className="admin-topbar">
-        <Link className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
-        <nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" href="/admin">Bedriftsportal</Link></nav>
+        <a className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></a>
+        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><a href="/">Bestill time</a><a className="active" href="/admin">Bedriftsportal</a></nav><button type="button" onClick={signOut}>Logg ut</button></div>
       </header>
 
       <div className="admin-layout">
@@ -56,11 +161,12 @@ export function AdminDashboard() {
           <nav aria-label="Filtrer bestillinger">
             {(["upcoming", "all", "completed", "cancelled"] as const).map((value) => <button type="button" className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)}><span>{value === "all" ? "Alle" : statusLabels[value]}</span><strong>{value === "all" ? bookings.length : bookings.filter((booking) => booking.status === value).length}</strong></button>)}
           </nav>
-          <div className="demo-security"><strong>Demoportal</strong><p>Legg til sikker innlogging før ekte kundedata tas i bruk.</p></div>
+          <div className="demo-security"><strong>Serverlagret</strong><p>Bestillingene er synkronisert med Supabase og tilgjengelige på alle enheter.</p></div>
         </aside>
 
         <section className="admin-main">
-          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div>
+          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh}>↻ Oppdater</button><a className="new-booking-link" href="/">+ Ny bestilling</a></div></div>
+          {dataError ? <p className="booking-error" role="alert">{dataError}</p> : null}
           <div className="metric-grid">
             <article><span>I dag</span><strong>{todayCount}</strong><small>bestillinger</small></article>
             <article><span>Kommende</span><strong>{upcoming.length}</strong><small>aktive timer</small></article>

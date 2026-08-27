@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { addBooking, Booking, getBookings } from "@/lib/booking-store";
 
 type Service = {
   id: string;
@@ -70,6 +71,16 @@ export function BookingDemo() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingError, setBookingError] = useState("");
+
+  useEffect(() => {
+    const refresh = () => setBookings(getBookings());
+    refresh();
+    window.addEventListener("booking-demo-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener("booking-demo-updated", refresh); window.removeEventListener("storage", refresh); };
+  }, []);
 
   const selectedService = services.find((item) => item.id === serviceId) ?? services[0];
   const selectedStaff = staff.find((item) => item.id === staffId) ?? staff[0];
@@ -78,7 +89,8 @@ export function BookingDemo() {
   const slotsForDate = (date: Date | null) => {
     if (!date) return [];
     const day = date.getDate();
-    return timeOptions.map((time, index) => ({ time, busy: (day + index + (staffId === "nora" ? 1 : 0)) % 4 === 0 }));
+    const key = dateKey(date);
+    return timeOptions.map((time, index) => ({ time, busy: bookings.some((booking) => booking.status === "upcoming" && booking.date === key && booking.time === time) || (day + index + (staffId === "nora" ? 1 : 0)) % 4 === 0 }));
   };
 
   const chooseDate = (date: Date) => {
@@ -94,6 +106,17 @@ export function BookingDemo() {
     setSelectedDate(null);
     setSelectedTime("");
     setConfirmed(false);
+    setBookingError("");
+  };
+
+  const submitBooking = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedDate || !selectedTime) return;
+    const data = new FormData(event.currentTarget);
+    const assignedStaff = staffId === "any" ? staff[(selectedDate.getDate() + timeOptions.indexOf(selectedTime)) % 2 + 1] : selectedStaff;
+    const saved = addBooking({ id: crypto.randomUUID(), customerName: String(data.get("name")), email: String(data.get("email")), phone: String(data.get("phone")), note: String(data.get("note") || ""), serviceId, serviceName: selectedService.name, staffId: assignedStaff.id, staffName: assignedStaff.name, date: dateKey(selectedDate), time: selectedTime, duration: selectedService.duration, price: selectedService.price, status: "upcoming", createdAt: new Date().toISOString() });
+    if (!saved) { setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt."); setStep(3); setSelectedTime(""); setBookings(getBookings()); return; }
+    setConfirmed(true);
   };
 
   if (confirmed) {
@@ -123,7 +146,7 @@ export function BookingDemo() {
           <span className="business-mark">SN</span>
           <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
         </a>
-        <span className="demo-pill"><i /> Interaktiv demo</span>
+        <nav className="surface-switch" aria-label="Bytt visning"><a className="active" href="/">Bestill time</a><a href="/admin">Bedriftsportal</a></nav>
       </header>
 
       <section className="intro">
@@ -184,6 +207,7 @@ export function BookingDemo() {
           {step === 3 && (
             <section className="step-panel calendar-panel">
               <div className="panel-heading"><div><p className="eyebrow">Steg 3 av 4</p><h2>Når passer det?</h2></div><p>Tidene oppdateres etter valgt behandler.</p></div>
+              {bookingError ? <p className="booking-error" role="alert">{bookingError}</p> : null}
               <div className="calendar-layout">
                 <div className="calendar-card">
                   <div className="calendar-header">
@@ -221,7 +245,7 @@ export function BookingDemo() {
           {step === 4 && (
             <section className="step-panel">
               <div className="panel-heading"><div><p className="eyebrow">Steg 4 av 4</p><h2>Hvem bestiller?</h2></div><p>Opplysningene brukes kun til denne demoen.</p></div>
-              <form className="customer-form" onSubmit={(event) => { event.preventDefault(); setConfirmed(true); }}>
+              <form className="customer-form" onSubmit={submitBooking}>
                 <label><span>Navn</span><input name="name" type="text" placeholder="Ola Nordmann" required /></label>
                 <div className="form-row"><label><span>E-post</span><input name="email" type="email" placeholder="ola@eksempel.no" required /></label><label><span>Telefon</span><input name="phone" type="tel" placeholder="999 99 999" required /></label></div>
                 <label><span>Kommentar <small>valgfritt</small></span><textarea name="note" placeholder="Er det noe vi bør vite før timen?" rows={3} /></label>
@@ -241,7 +265,7 @@ export function BookingDemo() {
         </aside>
       </section>
 
-      <footer><span>Booking System Demo</span><span>Eksempeldata · Ingen bestilling lagres</span></footer>
+      <footer><span>Booking System Demo</span><span>Bestillinger lagres lokalt på denne enheten</span></footer>
     </main>
   );
 }

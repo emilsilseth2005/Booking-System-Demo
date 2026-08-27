@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase";
+
 export type BookingStatus = "upcoming" | "completed" | "cancelled";
 
 export type Booking = {
@@ -18,49 +20,106 @@ export type Booking = {
   createdAt: string;
 };
 
-const STORAGE_KEY = "booking-system-demo:v1";
+export type OccupiedSlot = {
+  staffId: string;
+  date: string;
+  time: string;
+};
 
-function futureDate(days: number) {
-  const value = new Date();
-  value.setDate(value.getDate() + days);
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+type BookingRow = {
+  id: string;
+  customer_name: string;
+  email: string;
+  phone: string;
+  note: string;
+  service_id: string;
+  service_name: string;
+  staff_id: string;
+  staff_name: string;
+  booking_date: string;
+  booking_time: string;
+  duration: number;
+  price: number;
+  status: BookingStatus;
+  created_at: string;
+};
+
+function fromRow(row: BookingRow): Booking {
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    email: row.email,
+    phone: row.phone,
+    note: row.note,
+    serviceId: row.service_id,
+    serviceName: row.service_name,
+    staffId: row.staff_id,
+    staffName: row.staff_name,
+    date: row.booking_date,
+    time: row.booking_time,
+    duration: row.duration,
+    price: row.price,
+    status: row.status,
+    createdAt: row.created_at,
+  };
 }
 
-function sampleBookings(): Booking[] {
-  return [
-    { id: "sample-1", customerName: "Anna Berg", email: "anna@eksempel.no", phone: "988 21 345", note: "Ønsker lett oppklipping.", serviceId: "klipp", serviceName: "Dame- og herreklipp", staffId: "nora", staffName: "Nora", date: futureDate(1), time: "10:15", duration: 60, price: 790, status: "upcoming", createdAt: new Date().toISOString() },
-    { id: "sample-2", customerName: "Jonas Vik", email: "jonas@eksempel.no", phone: "944 18 760", note: "", serviceId: "skjegg", serviceName: "Skjegg og finish", staffId: "emil", staffName: "Emil", date: futureDate(2), time: "13:00", duration: 30, price: 450, status: "upcoming", createdAt: new Date().toISOString() },
-  ];
+export async function getOccupiedSlots(): Promise<OccupiedSlot[]> {
+  const { data, error } = await supabase
+    .from("booking_demo_slots")
+    .select("staff_id, booking_date, booking_time");
+
+  if (error) throw error;
+  return (data ?? []).map((slot) => ({
+    staffId: slot.staff_id,
+    date: slot.booking_date,
+    time: slot.booking_time,
+  }));
 }
 
-export function getBookings(): Booking[] {
-  if (typeof window === "undefined") return [];
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try { return JSON.parse(stored) as Booking[]; } catch { /* Seed a clean demo below. */ }
-  }
-  const seeded = sampleBookings();
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-  return seeded;
+export async function getBookings(): Promise<Booking[]> {
+  const { data, error } = await supabase
+    .from("booking_demo_bookings")
+    .select("*")
+    .order("booking_date", { ascending: true })
+    .order("booking_time", { ascending: true });
+
+  if (error) throw error;
+  return ((data ?? []) as BookingRow[]).map(fromRow);
 }
 
-export function saveBookings(bookings: Booking[]) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
-  window.dispatchEvent(new CustomEvent("booking-demo-updated"));
+export async function addBooking(booking: Booking): Promise<boolean> {
+  const { error } = await supabase.from("booking_demo_bookings").insert({
+    id: booking.id,
+    customer_name: booking.customerName.trim(),
+    email: booking.email.trim().toLowerCase(),
+    phone: booking.phone.trim(),
+    note: booking.note.trim(),
+    service_id: booking.serviceId,
+    service_name: booking.serviceName,
+    staff_id: booking.staffId,
+    staff_name: booking.staffName,
+    booking_date: booking.date,
+    booking_time: booking.time,
+    duration: booking.duration,
+    price: booking.price,
+    status: "upcoming",
+  });
+
+  if (!error) return true;
+  if (error.code === "23505") return false;
+  throw error;
 }
 
-export function addBooking(booking: Booking) {
-  const bookings = getBookings();
-  const conflict = bookings.some((item) => item.status === "upcoming" && item.date === booking.date && item.time === booking.time);
-  if (conflict) return false;
-  saveBookings([...bookings, booking]);
-  return true;
+export async function updateBookingStatus(id: string, status: BookingStatus) {
+  const { error } = await supabase
+    .from("booking_demo_bookings")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
 }
 
-export function updateBookingStatus(id: string, status: BookingStatus) {
-  saveBookings(getBookings().map((booking) => booking.id === id ? { ...booking, status } : booking));
-}
-
-export function deleteBooking(id: string) {
-  saveBookings(getBookings().filter((booking) => booking.id !== id));
+export async function deleteBooking(id: string) {
+  const { error } = await supabase.from("booking_demo_bookings").delete().eq("id", id);
+  if (error) throw error;
 }

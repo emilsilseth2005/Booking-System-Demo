@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import Image from "next/image";
+import Link from "next/link";
 import { Booking, BookingStatus, deleteBooking, getBookings, updateBookingStatus } from "@/lib/booking-store";
 import { supabase } from "@/lib/supabase";
 
@@ -126,7 +128,7 @@ export function AdminDashboard() {
     return (
       <main className="admin-auth-page">
         <section className="admin-auth-card">
-          <a className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></a>
+          <Link className="business" href="/"><span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
           <div><p className="eyebrow">Sikker innlogging</p><h1>Se og administrer bestillinger.</h1><p>Logg inn med lederbrukeren fra CRM-systemet.</p></div>
           <form onSubmit={signIn}>
             <label><span>E-post</span><input name="email" type="email" autoComplete="email" required /></label>
@@ -134,7 +136,7 @@ export function AdminDashboard() {
             {authError ? <p className="booking-error" role="alert">{authError}</p> : null}
             <button className="primary-button" type="submit" disabled={isSigningIn}>{isSigningIn ? "Logger inn …" : "Logg inn"} <span>→</span></button>
           </form>
-          <a className="back-to-booking" href="/">← Tilbake til bestillingssiden</a>
+          <Link className="back-to-booking" href="/">← Tilbake til bestillingssiden</Link>
         </section>
       </main>
     );
@@ -151,8 +153,8 @@ export function AdminDashboard() {
   return (
     <main className="admin-page">
       <header className="admin-topbar">
-        <a className="business" href="/"><span className="business-mark">SN</span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></a>
-        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><a href="/">Bestill time</a><a className="active" href="/admin">Bedriftsportal</a></nav><button type="button" onClick={signOut}>Logg ut</button></div>
+        <Link className="business" href="/"><span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
+        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" href="/admin">Bedriftsportal</Link></nav><button type="button" onClick={signOut}>Logg ut</button></div>
       </header>
 
       <div className="admin-layout">
@@ -165,7 +167,7 @@ export function AdminDashboard() {
         </aside>
 
         <section className="admin-main">
-          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh}>↻ Oppdater</button><a className="new-booking-link" href="/">+ Ny bestilling</a></div></div>
+          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh}>↻ Oppdater</button><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div></div>
           {dataError ? <p className="booking-error" role="alert">{dataError}</p> : null}
           <div className="metric-grid">
             <article><span>I dag</span><strong>{todayCount}</strong><small>bestillinger</small></article>

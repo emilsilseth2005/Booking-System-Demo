@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { addBooking, getOccupiedSlots, OccupiedSlot } from "@/lib/booking-store";
 
 type Service = {
@@ -18,6 +20,7 @@ type Staff = {
   role: string;
   initials: string;
   tone: string;
+  image?: string;
 };
 
 const services: Service[] = [
@@ -28,8 +31,8 @@ const services: Service[] = [
 
 const staff: Staff[] = [
   { id: "any", name: "Første ledige", role: "Vis flest tilgjengelige tider", initials: "↗", tone: "sky" },
-  { id: "nora", name: "Nora", role: "Seniorstylist", initials: "NS", tone: "gold" },
-  { id: "emil", name: "Emil", role: "Frisør og barberer", initials: "EL", tone: "mint" },
+  { id: "nora", name: "Nora", role: "Seniorstylist", initials: "NS", tone: "gold", image: "/staff/nora-seniorstylist.webp" },
+  { id: "emil", name: "Emil", role: "Frisør og barberer", initials: "EL", tone: "mint", image: "/staff/emil-frisor-barberer.webp" },
 ];
 
 const weekdays = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"];
@@ -174,10 +177,10 @@ export function BookingDemo() {
     <main className="booking-page">
       <header className="topbar">
         <a className="business" href="#booking" aria-label="Studio Nord, gå til bestilling">
-          <span className="business-mark">SN</span>
+          <span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span>
           <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
         </a>
-        <nav className="surface-switch" aria-label="Bytt visning"><a className="active" href="/">Bestill time</a><a href="/admin">Bedriftsportal</a></nav>
+        <nav className="surface-switch" aria-label="Bytt visning"><Link className="active" href="/">Bestill time</Link><Link href="/admin">Bedriftsportal</Link></nav>
       </header>
 
       <section className="intro">
@@ -225,7 +228,9 @@ export function BookingDemo() {
               <div className="staff-grid">
                 {staff.map((person) => (
                   <button className={staffId === person.id ? "staff-option selected" : "staff-option"} type="button" key={person.id} onClick={() => setStaffId(person.id)}>
-                    <span className={`avatar ${person.tone}`}>{person.initials}</span>
+                    <span className={`avatar ${person.tone}${person.image ? " has-photo" : ""}`}>
+                      {person.image ? <Image src={person.image} width={132} height={132} alt="" /> : person.initials}
+                    </span>
                     <span><strong>{person.name}</strong><small>{person.role}</small></span>
                     <span className="radio-dot" />
                   </button>

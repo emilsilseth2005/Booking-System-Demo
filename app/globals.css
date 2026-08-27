@@ -11,6 +11,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .topbar { height: 86px; padding: 0 clamp(22px, 5vw, 72px); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(255,253,240,.78); backdrop-filter: blur(18px); }
 .business { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
 .business-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--navy); color: var(--cream); font-size: .72rem; font-weight: 850; letter-spacing: .05em; }
+.business-mark img { width: 30px; height: 30px; object-fit: contain; }
 .business > span:last-child { display: grid; line-height: 1.2; }
 .business strong { font-size: .9rem; }
 .business small { margin-top: 3px; color: rgba(15,41,64,.55); font-size: .68rem; }
@@ -71,6 +72,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .staff-option.selected { border-color: var(--navy); background: white; box-shadow: 0 12px 34px rgba(15,41,64,.09); }
 .avatar { width: 66px; height: 66px; display: grid; place-items: center; margin-bottom: auto; border-radius: 22px; font-weight: 850; }
 .avatar.sky { background: var(--mist); }.avatar.gold { background: var(--gold); }.avatar.mint { background: #cde3d6; }
+.avatar.has-photo { overflow: hidden; background: var(--mist); }
+.avatar.has-photo img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .staff-option > span:nth-child(2) { display: grid; margin-top: 40px; }
 .staff-option strong { font-size: 1rem; }.staff-option small { margin-top: 4px; color: rgba(15,41,64,.53); font-size: .7rem; }
 .staff-option .radio-dot { position: absolute; align-self: flex-end; }

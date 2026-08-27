@@ -1,0 +1,247 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
+type Service = {
+  id: string;
+  name: string;
+  description: string;
+  duration: number;
+  price: number;
+  symbol: string;
+};
+
+type Staff = {
+  id: string;
+  name: string;
+  role: string;
+  initials: string;
+  tone: string;
+};
+
+const services: Service[] = [
+  { id: "klipp", name: "Dame- og herreklipp", description: "Konsultasjon, vask, klipp og enkel styling.", duration: 60, price: 790, symbol: "✦" },
+  { id: "styling", name: "Vask og styling", description: "Vask, føn og styling til hverdag eller anledning.", duration: 45, price: 590, symbol: "∿" },
+  { id: "skjegg", name: "Skjegg og finish", description: "Forming, maskinklipp og presis finish.", duration: 30, price: 450, symbol: "⌁" },
+];
+
+const staff: Staff[] = [
+  { id: "any", name: "Første ledige", role: "Vis flest tilgjengelige tider", initials: "↗", tone: "sky" },
+  { id: "nora", name: "Nora", role: "Seniorstylist", initials: "NS", tone: "gold" },
+  { id: "emil", name: "Emil", role: "Frisør og barberer", initials: "EL", tone: "mint" },
+];
+
+const weekdays = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"];
+const monthNames = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+const timeOptions = ["09:00", "10:15", "11:30", "13:00", "14:15", "15:30", "17:00"];
+
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatDate(date: Date | null) {
+  if (!date) return "Velg dato";
+  return new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "long" }).format(date);
+}
+
+function makeCalendar(month: Date) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDay = new Date(year, monthIndex, 1);
+  const offset = (firstDay.getDay() + 6) % 7;
+  const days = new Date(year, monthIndex + 1, 0).getDate();
+  return [
+    ...Array.from({ length: offset }, () => null),
+    ...Array.from({ length: days }, (_, index) => new Date(year, monthIndex, index + 1)),
+  ];
+}
+
+export function BookingDemo() {
+  const today = useMemo(() => {
+    const value = new Date();
+    value.setHours(0, 0, 0, 0);
+    return value;
+  }, []);
+  const initialMonth = useMemo(() => new Date(today.getFullYear(), today.getMonth(), 1), [today]);
+  const [step, setStep] = useState(1);
+  const [serviceId, setServiceId] = useState("klipp");
+  const [staffId, setStaffId] = useState("any");
+  const [month, setMonth] = useState(initialMonth);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+
+  const selectedService = services.find((item) => item.id === serviceId) ?? services[0];
+  const selectedStaff = staff.find((item) => item.id === staffId) ?? staff[0];
+  const calendar = useMemo(() => makeCalendar(month), [month]);
+
+  const slotsForDate = (date: Date | null) => {
+    if (!date) return [];
+    const day = date.getDate();
+    return timeOptions.map((time, index) => ({ time, busy: (day + index + (staffId === "nora" ? 1 : 0)) % 4 === 0 }));
+  };
+
+  const chooseDate = (date: Date) => {
+    setSelectedDate(date);
+    setSelectedTime("");
+  };
+
+  const reset = () => {
+    setStep(1);
+    setServiceId("klipp");
+    setStaffId("any");
+    setMonth(initialMonth);
+    setSelectedDate(null);
+    setSelectedTime("");
+    setConfirmed(false);
+  };
+
+  if (confirmed) {
+    return (
+      <main className="confirmation-page">
+        <section className="confirmation-card" aria-live="polite">
+          <div className="confirmation-mark">✓</div>
+          <p className="eyebrow">Bestillingen er registrert</p>
+          <h1>Da er tiden din satt av.</h1>
+          <p className="confirmation-lead">Dette er en demo. I en ferdig løsning ville kunden fått bekreftelse på e-post eller SMS nå.</p>
+          <div className="confirmation-details">
+            <div><span>Tjeneste</span><strong>{selectedService.name}</strong></div>
+            <div><span>Tidspunkt</span><strong>{formatDate(selectedDate)} kl. {selectedTime}</strong></div>
+            <div><span>Behandler</span><strong>{selectedStaff.name}</strong></div>
+            <div><span>Pris</span><strong>{selectedService.price} kr</strong></div>
+          </div>
+          <button className="primary-button" type="button" onClick={reset}>Lag en ny bestilling <span>↗</span></button>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="booking-page">
+      <header className="topbar">
+        <a className="business" href="#booking" aria-label="Studio Nord, gå til bestilling">
+          <span className="business-mark">SN</span>
+          <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
+        </a>
+        <span className="demo-pill"><i /> Interaktiv demo</span>
+      </header>
+
+      <section className="intro">
+        <p className="eyebrow">Enklere timebestilling</p>
+        <h1>Finn en tid som passer.</h1>
+        <p>Velg tjeneste, behandler og tidspunkt. Hele bestillingen tar under ett minutt.</p>
+      </section>
+
+      <section className="booking-shell" id="booking">
+        <nav className="steps" aria-label="Steg i bestillingen">
+          {[
+            [1, "Tjeneste"],
+            [2, "Behandler"],
+            [3, "Dato og tid"],
+            [4, "Dine opplysninger"],
+          ].map(([number, label]) => (
+            <button key={number} type="button" className={step === number ? "active" : step > number ? "complete" : ""} onClick={() => Number(number) <= step && setStep(Number(number))} disabled={Number(number) > step}>
+              <span>{step > number ? "✓" : number}</span><strong>{label}</strong>
+            </button>
+          ))}
+          <div className="help-card"><span>?</span><div><strong>Trenger du hjelp?</strong><small>Ring 99 00 00 00</small></div></div>
+        </nav>
+
+        <div className="booking-content">
+          {step === 1 && (
+            <section className="step-panel">
+              <div className="panel-heading"><div><p className="eyebrow">Steg 1 av 4</p><h2>Hva vil du bestille?</h2></div><p>Pris og varighet vises før du går videre.</p></div>
+              <div className="service-list">
+                {services.map((service) => (
+                  <button className={serviceId === service.id ? "service-option selected" : "service-option"} type="button" key={service.id} onClick={() => setServiceId(service.id)}>
+                    <span className="service-symbol">{service.symbol}</span>
+                    <span className="service-copy"><strong>{service.name}</strong><small>{service.description}</small></span>
+                    <span className="service-meta"><strong>{service.price} kr</strong><small>{service.duration} min</small></span>
+                    <span className="radio-dot" />
+                  </button>
+                ))}
+              </div>
+              <div className="panel-footer"><span /><button className="primary-button" type="button" onClick={() => setStep(2)}>Velg behandler <span>→</span></button></div>
+            </section>
+          )}
+
+          {step === 2 && (
+            <section className="step-panel">
+              <div className="panel-heading"><div><p className="eyebrow">Steg 2 av 4</p><h2>Hvem vil du bestille hos?</h2></div><p>Velg første ledige for flest mulige tider.</p></div>
+              <div className="staff-grid">
+                {staff.map((person) => (
+                  <button className={staffId === person.id ? "staff-option selected" : "staff-option"} type="button" key={person.id} onClick={() => setStaffId(person.id)}>
+                    <span className={`avatar ${person.tone}`}>{person.initials}</span>
+                    <span><strong>{person.name}</strong><small>{person.role}</small></span>
+                    <span className="radio-dot" />
+                  </button>
+                ))}
+              </div>
+              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(1)}>← Tilbake</button><button className="primary-button" type="button" onClick={() => setStep(3)}>Velg dato og tid <span>→</span></button></div>
+            </section>
+          )}
+
+          {step === 3 && (
+            <section className="step-panel calendar-panel">
+              <div className="panel-heading"><div><p className="eyebrow">Steg 3 av 4</p><h2>Når passer det?</h2></div><p>Tidene oppdateres etter valgt behandler.</p></div>
+              <div className="calendar-layout">
+                <div className="calendar-card">
+                  <div className="calendar-header">
+                    <button type="button" aria-label="Forrige måned" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>←</button>
+                    <strong>{monthNames[month.getMonth()]} {month.getFullYear()}</strong>
+                    <button type="button" aria-label="Neste måned" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>→</button>
+                  </div>
+                  <div className="weekday-row">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
+                  <div className="calendar-grid">
+                    {calendar.map((date, index) => {
+                      if (!date) return <span key={`empty-${index}`} />;
+                      const past = date < today;
+                      const sunday = date.getDay() === 0;
+                      const unavailable = past || sunday;
+                      const selected = selectedDate && dateKey(selectedDate) === dateKey(date);
+                      const limited = !unavailable && date.getDate() % 5 === 0;
+                      return <button key={dateKey(date)} type="button" disabled={unavailable} className={selected ? "selected" : limited ? "limited" : ""} onClick={() => chooseDate(date)}><span>{date.getDate()}</span>{!unavailable && <i />}</button>;
+                    })}
+                  </div>
+                  <div className="calendar-legend"><span><i className="available" /> Ledig</span><span><i className="limited" /> Få tider</span><span><i className="busy" /> Ikke ledig</span></div>
+                </div>
+                <div className="times-card">
+                  <div><p className="eyebrow">Tilgjengelige tider</p><h3>{formatDate(selectedDate)}</h3></div>
+                  {!selectedDate ? <div className="empty-times"><span>↙</span><p>Velg en dato i kalenderen for å se ledige tidspunkt.</p></div> : (
+                    <div className="time-grid">
+                      {slotsForDate(selectedDate).map((slot) => <button type="button" key={slot.time} disabled={slot.busy} className={selectedTime === slot.time ? "selected" : ""} onClick={() => setSelectedTime(slot.time)}>{slot.time}{slot.busy && <small>Opptatt</small>}</button>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(2)}>← Tilbake</button><button className="primary-button" type="button" disabled={!selectedDate || !selectedTime} onClick={() => setStep(4)}>Fyll inn opplysninger <span>→</span></button></div>
+            </section>
+          )}
+
+          {step === 4 && (
+            <section className="step-panel">
+              <div className="panel-heading"><div><p className="eyebrow">Steg 4 av 4</p><h2>Hvem bestiller?</h2></div><p>Opplysningene brukes kun til denne demoen.</p></div>
+              <form className="customer-form" onSubmit={(event) => { event.preventDefault(); setConfirmed(true); }}>
+                <label><span>Navn</span><input name="name" type="text" placeholder="Ola Nordmann" required /></label>
+                <div className="form-row"><label><span>E-post</span><input name="email" type="email" placeholder="ola@eksempel.no" required /></label><label><span>Telefon</span><input name="phone" type="tel" placeholder="999 99 999" required /></label></div>
+                <label><span>Kommentar <small>valgfritt</small></span><textarea name="note" placeholder="Er det noe vi bør vite før timen?" rows={3} /></label>
+                <label className="consent"><input type="checkbox" required /><span>Jeg godtar at opplysningene brukes til å behandle bestillingen.</span></label>
+                <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(3)}>← Tilbake</button><button className="primary-button" type="submit">Bekreft bestilling <span>✓</span></button></div>
+              </form>
+            </section>
+          )}
+        </div>
+
+        <aside className="summary-card">
+          <p className="eyebrow">Din bestilling</p>
+          <div className="summary-service"><span>{selectedService.symbol}</span><div><strong>{selectedService.name}</strong><small>{selectedService.duration} minutter</small></div></div>
+          <dl><div><dt>Behandler</dt><dd>{selectedStaff.name}</dd></div><div><dt>Dato</dt><dd>{formatDate(selectedDate)}</dd></div><div><dt>Tid</dt><dd>{selectedTime || "Velg tid"}</dd></div></dl>
+          <div className="summary-total"><span>Totalt</span><strong>{selectedService.price} kr</strong></div>
+          <p className="summary-note"><span>i</span> Ingen betaling i denne demoen.</p>
+        </aside>
+      </section>
+
+      <footer><span>Booking System Demo</span><span>Eksempeldata · Ingen bestilling lagres</span></footer>
+    </main>
+  );
+}

@@ -49,7 +49,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .service-option { width: 100%; min-height: 108px; padding: 18px 20px; display: grid; grid-template-columns: 54px minmax(0,1fr) auto 22px; align-items: center; gap: 18px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,253,240,.65); text-align: left; cursor: pointer; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
 .service-option:hover { transform: translateY(-2px); border-color: rgba(15,41,64,.3); }
 .service-option.selected { border-color: var(--navy); background: white; box-shadow: 0 10px 28px rgba(15,41,64,.08); }
-.service-symbol { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 15px; background: var(--peach); font-size: 1.5rem; }
+.service-symbol { width: 50px; height: 50px; display: block; overflow: hidden; border-radius: 15px; background: var(--peach); }
+.service-symbol img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .service-copy { display: grid; }
 .service-copy strong { font-size: .9rem; }
 .service-copy small { margin-top: 5px; color: rgba(15,41,64,.55); font-size: .72rem; }
@@ -111,7 +112,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .summary-card { padding: 34px 25px; border-left: 1px solid var(--line); background: var(--navy); color: var(--cream); }
 .summary-card .eyebrow { color: var(--sky); }
 .summary-service { margin: 28px 0; padding-bottom: 28px; display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,249,210,.14); }
-.summary-service > span { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; background: var(--gold); color: var(--navy); font-size: 1.2rem; }
+.summary-service > span { width: 46px; height: 46px; display: block; overflow: hidden; border-radius: 14px; background: var(--gold); }
+.summary-service > span img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .summary-service div { display: grid; }.summary-service strong { font-size: .78rem; }.summary-service small { margin-top: 3px; color: rgba(255,249,210,.5); font-size: .66rem; }
 .summary-card dl { margin: 0; display: grid; gap: 16px; }.summary-card dl div { display: flex; justify-content: space-between; gap: 12px; }.summary-card dt { color: rgba(255,249,210,.5); font-size: .67rem; }.summary-card dd { margin: 0; max-width: 145px; font-size: .68rem; font-weight: 750; text-align: right; text-transform: capitalize; }
 .summary-total { margin-top: 28px; padding-top: 24px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,249,210,.14); }.summary-total span { color: rgba(255,249,210,.62); font-size: .72rem; }.summary-total strong { font-size: 1.35rem; }

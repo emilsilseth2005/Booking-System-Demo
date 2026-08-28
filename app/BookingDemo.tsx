@@ -3,7 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { addBooking, getOccupiedSlots, OccupiedSlot } from "@/lib/booking-store";
+import { getOccupiedSlots } from "@/lib/booking-store";
+import type { OccupiedSlot } from "@/lib/booking-store";
 import { isBookingTimePast } from "@/lib/booking-time";
 
 type Service = {
@@ -78,6 +79,7 @@ export function BookingDemo() {
   const [occupiedSlots, setOccupiedSlots] = useState<OccupiedSlot[]>([]);
   const [bookingError, setBookingError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmationNotice, setConfirmationNotice] = useState("");
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const refreshOccupiedSlots = useCallback(async () => {
@@ -170,6 +172,7 @@ export function BookingDemo() {
     setSelectedDate(null);
     setSelectedTime("");
     setConfirmed(false);
+    setConfirmationNotice("");
     setBookingError("");
   };
 
@@ -197,15 +200,35 @@ export function BookingDemo() {
     }
 
     try {
-      const saved = await addBooking({ id: crypto.randomUUID(), customerName: String(data.get("name")), email: String(data.get("email")), phone: String(data.get("phone")), note: String(data.get("note") || ""), serviceId, serviceName: selectedService.name, staffId: assignedStaff.id, staffName: assignedStaff.name, date: dateKey(selectedDate), time: selectedTime, duration: selectedService.duration, price: selectedService.price, status: "upcoming", createdAt: new Date().toISOString() });
-      if (!saved) {
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          bookingId: crypto.randomUUID(),
+          serviceId,
+          staffId: assignedStaff.id,
+          date: dateKey(selectedDate),
+          time: selectedTime,
+          website: String(data.get("website") || ""),
+          customer: {
+            name: String(data.get("name")),
+            email: String(data.get("email")),
+            phone: String(data.get("phone")),
+            note: String(data.get("note") || ""),
+          },
+        }),
+      });
+      const result = await response.json() as { saved?: boolean; emailSent?: boolean; error?: string };
+      if (response.status === 409) {
         setBookingError("Denne tiden ble nettopp bestilt. Velg et annet tidspunkt.");
         setStep(3);
         setSelectedTime("");
         await refreshOccupiedSlots();
         return;
       }
+      if (!response.ok || !result.saved) throw new Error(result.error || "Booking failed");
       setStaffId(assignedStaff.id);
+      setConfirmationNotice(result.emailSent === false ? "Bestillingen er lagret, men e-postbekreftelsen kunne ikke sendes." : "En bekreftelse er sendt til e-postadressen din.");
       setConfirmed(true);
     } catch {
       setBookingError("Bestillingen kunne ikke lagres. Kontroller forbindelsen og prøv igjen.");
@@ -221,7 +244,7 @@ export function BookingDemo() {
           <div className="confirmation-mark">✓</div>
           <p className="eyebrow">Bestillingen er registrert</p>
           <h1>Da er tiden din satt av.</h1>
-          <p className="confirmation-lead">Dette er en demo. I en ferdig løsning ville kunden fått bekreftelse på e-post eller SMS nå.</p>
+          <p className="confirmation-lead">{confirmationNotice}</p>
           <div className="confirmation-details">
             <div><span>Tjeneste</span><strong>{selectedService.name}</strong></div>
             <div><span>Tidspunkt</span><strong>{formatDate(selectedDate)} kl. {selectedTime}</strong></div>
@@ -241,7 +264,7 @@ export function BookingDemo() {
           <span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span>
           <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
         </a>
-        <nav className="surface-switch" aria-label="Bytt visning"><Link className="active" href="/">Bestill time</Link><Link href="/admin">Bedriftsportal</Link></nav>
+        <nav className="surface-switch" aria-label="Bytt visning"><Link className="active" aria-current="page" href="/">Bestill time</Link><Link href="/admin">Bedriftsportal</Link></nav>
       </header>
 
       <section className="intro">
@@ -343,9 +366,10 @@ export function BookingDemo() {
             <section className="step-panel">
               <div className="panel-heading"><div><p className="eyebrow">Steg 4 av 4</p><h2>Hvem bestiller?</h2></div><p>Opplysningene brukes kun til denne demoen.</p></div>
               <form className="customer-form" onSubmit={submitBooking}>
-                <label><span>Navn</span><input name="name" type="text" placeholder="Ola Nordmann" required /></label>
-                <div className="form-row"><label><span>E-post</span><input name="email" type="email" placeholder="ola@eksempel.no" required /></label><label><span>Telefon</span><input name="phone" type="tel" placeholder="999 99 999" required /></label></div>
-                <label><span>Kommentar <small>valgfritt</small></span><textarea name="note" placeholder="Er det noe vi bør vite før timen?" rows={3} /></label>
+                <label><span>Navn</span><input name="name" type="text" autoComplete="name" maxLength={80} placeholder="Ola Nordmann" required /></label>
+                <div className="form-row"><label><span>E-post</span><input name="email" type="email" autoComplete="email" maxLength={160} placeholder="ola@eksempel.no" required /></label><label><span>Telefon</span><input name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={30} placeholder="999 99 999" required /></label></div>
+                <label className="honeypot" aria-hidden="true"><span>Nettside</span><input name="website" type="text" autoComplete="off" tabIndex={-1} /></label>
+                <label><span>Kommentar <small>valgfritt</small></span><textarea name="note" maxLength={500} placeholder="Er det noe vi bør vite før timen?" rows={3} /></label>
                 <label className="consent"><input type="checkbox" required /><span>Jeg godtar at opplysningene brukes til å behandle bestillingen.</span></label>
                 <div className="panel-footer"><button className="back-button" type="button" onClick={() => setStep(3)}>← Tilbake</button><button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? "Lagrer …" : "Bekreft bestilling"} <span>✓</span></button></div>
               </form>

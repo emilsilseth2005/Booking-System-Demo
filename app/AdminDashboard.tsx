@@ -4,7 +4,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import Link from "next/link";
-import { Booking, BookingStatus, deleteBooking, getBookings, updateBookingStatus } from "@/lib/booking-store";
+import { deleteBooking, getBookings, updateBookingStatus } from "@/lib/booking-store";
+import type { Booking, BookingStatus } from "@/lib/booking-store";
+import { osloDateKey } from "@/lib/booking-time";
 import { supabase } from "@/lib/supabase";
 
 const statusLabels: Record<BookingStatus, string> = { upcoming: "Kommende", completed: "Fullført", cancelled: "Avbestilt" };
@@ -23,6 +25,8 @@ export function AdminDashboard() {
   const [dataError, setDataError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadManagerAccess = useCallback(async (activeUser: User | null) => {
     setUser(activeUser);
@@ -42,6 +46,7 @@ export function AdminDashboard() {
 
     const manager = !profileError && profile?.role === "manager";
     setIsManager(manager);
+    if (profileError) setDataError("Kunne ikke kontrollere ledertilgangen akkurat nå.");
     if (manager) {
       try {
         setBookings(await getBookings());
@@ -62,11 +67,14 @@ export function AdminDashboard() {
   }, [loadManagerAccess]);
 
   const refresh = async () => {
+    setIsRefreshing(true);
     try {
       setBookings(await getBookings());
       setDataError("");
     } catch {
       setDataError("Kunne ikke oppdatere bestillingene.");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -97,26 +105,32 @@ export function AdminDashboard() {
   }, [bookings, filter, query]);
 
   const upcoming = bookings.filter((booking) => booking.status === "upcoming");
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = osloDateKey();
   const todayCount = upcoming.filter((booking) => booking.date === todayKey).length;
   const revenue = bookings.filter((booking) => booking.status !== "cancelled").reduce((sum, booking) => sum + booking.price, 0);
 
   const changeStatus = async (id: string, status: BookingStatus) => {
+    setPendingBookingId(id);
     try {
       await updateBookingStatus(id, status);
       await refresh();
     } catch {
       setDataError(status === "upcoming" ? "Tiden er allerede opptatt." : "Statusen kunne ikke endres.");
+    } finally {
+      setPendingBookingId(null);
     }
   };
 
   const remove = async (id: string) => {
     if (!window.confirm("Vil du slette denne bestillingen permanent?")) return;
+    setPendingBookingId(id);
     try {
       await deleteBooking(id);
       await refresh();
     } catch {
       setDataError("Bestillingen kunne ikke slettes.");
+    } finally {
+      setPendingBookingId(null);
     }
   };
 
@@ -154,7 +168,7 @@ export function AdminDashboard() {
     <main className="admin-page">
       <header className="admin-topbar">
         <Link className="business" href="/"><span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
-        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" href="/admin">Bedriftsportal</Link></nav><button type="button" onClick={signOut}>Logg ut</button></div>
+        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" aria-current="page" href="/admin">Bedriftsportal</Link></nav><button type="button" onClick={signOut}>Logg ut</button></div>
       </header>
 
       <div className="admin-layout">
@@ -167,7 +181,7 @@ export function AdminDashboard() {
         </aside>
 
         <section className="admin-main">
-          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh}>↻ Oppdater</button><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div></div>
+          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh} disabled={isRefreshing}>{isRefreshing ? "Oppdaterer …" : "↻ Oppdater"}</button><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div></div>
           {dataError ? <p className="booking-error" role="alert">{dataError}</p> : null}
           <div className="metric-grid">
             <article><span>I dag</span><strong>{todayCount}</strong><small>bestillinger</small></article>
@@ -184,8 +198,8 @@ export function AdminDashboard() {
                 <div className="booking-service"><strong>{booking.serviceName}</strong><small>{booking.staffName} · {booking.duration} min</small></div>
                 <span className={`status-pill ${booking.status}`}>{statusLabels[booking.status]}</span>
                 <div className="row-actions">
-                  {booking.status === "upcoming" ? <><button type="button" onClick={() => changeStatus(booking.id, "completed")}>Fullfør</button><button type="button" onClick={() => changeStatus(booking.id, "cancelled")}>Avbestill</button></> : <button type="button" onClick={() => changeStatus(booking.id, "upcoming")}>Gjenåpne</button>}
-                  <button className="delete-action" type="button" aria-label={`Slett bestilling for ${booking.customerName}`} onClick={() => remove(booking.id)}>×</button>
+                  {booking.status === "upcoming" ? <><button type="button" disabled={pendingBookingId === booking.id} onClick={() => changeStatus(booking.id, "completed")}>Fullfør</button><button type="button" disabled={pendingBookingId === booking.id} onClick={() => changeStatus(booking.id, "cancelled")}>Avbestill</button></> : <button type="button" disabled={pendingBookingId === booking.id} onClick={() => changeStatus(booking.id, "upcoming")}>Gjenåpne</button>}
+                  <button className="delete-action" type="button" disabled={pendingBookingId === booking.id} aria-label={`Slett bestilling for ${booking.customerName}`} onClick={() => remove(booking.id)}>×</button>
                 </div>
                 {booking.note ? <p className="booking-note">“{booking.note}”</p> : null}
               </article>)}

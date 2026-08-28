@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 import { createBookingEmails, parseBookingRequest } from "@/lib/booking-email";
 
 export const runtime = "nodejs";
+
+function createBookingDatabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
 
 const requestWindowMs = 10 * 60 * 1000;
 const maxRequestsPerWindow = 5;
@@ -64,10 +72,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Kontroller opplysningene og prøv igjen." }, { status: 400 });
   }
 
+  const database = createBookingDatabase();
+  if (!database) {
+    return NextResponse.json({ error: "Bookingtjenesten er ikke konfigurert." }, { status: 503 });
+  }
+
+  const { error: bookingError } = await database.from("booking_demo_bookings").insert({
+    id: booking.bookingId,
+    customer_name: booking.customer.name,
+    email: booking.customer.email,
+    phone: booking.customer.phone,
+    note: booking.customer.note,
+    service_id: booking.serviceId,
+    service_name: booking.service.name,
+    staff_id: booking.staffId,
+    staff_name: booking.staff.name,
+    booking_date: booking.date,
+    booking_time: booking.time,
+    duration: booking.service.duration,
+    price: booking.service.price,
+    status: "upcoming",
+  });
+
+  if (bookingError?.code === "23505") {
+    return NextResponse.json({ saved: false, error: "Tidspunktet er ikke lenger ledig." }, { status: 409 });
+  }
+  if (bookingError) {
+    console.error("Booking insert failed:", bookingError.code, bookingError.message);
+    return NextResponse.json({ saved: false, error: "Bestillingen kunne ikke lagres." }, { status: 502 });
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.error("Booking email is unavailable: RESEND_API_KEY is missing.");
-    return NextResponse.json({ error: "E-posttjenesten er ikke konfigurert." }, { status: 503 });
+    return NextResponse.json({ saved: true, emailSent: false }, { status: 201 });
   }
 
   const from = process.env.BOOKING_FROM_EMAIL?.trim() || "Studio Nord <booking@klingsystems.no>";
@@ -100,12 +138,12 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Resend rejected booking emails:", error.name, error.message);
-      return NextResponse.json({ error: "Bekreftelsen kunne ikke sendes. Prøv igjen." }, { status: 502 });
+      return NextResponse.json({ saved: true, emailSent: false }, { status: 201 });
     }
 
-    return NextResponse.json({ sent: true, messageCount: data?.data.length ?? 2 });
+    return NextResponse.json({ saved: true, emailSent: true, messageCount: data?.data.length ?? 2 }, { status: 201 });
   } catch (error) {
     console.error("Booking email request failed:", error instanceof Error ? error.message : "Unknown error");
-    return NextResponse.json({ error: "Bekreftelsen kunne ikke sendes. Prøv igjen." }, { status: 502 });
+    return NextResponse.json({ saved: true, emailSent: false }, { status: 201 });
   }
 }

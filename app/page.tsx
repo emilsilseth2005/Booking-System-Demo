@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { BookingDemo } from "./BookingDemo";
 
 export const metadata: Metadata = {
-  title: "Bestill time | Studio Nord",
-  description: "Interaktiv demonstrasjon av en moderne bestillingsløsning.",
+  title: "Kundevisning | Booking System Demo",
+  description: "Se hvordan en enkel og tilpassbar digital bookingreise kan fungere for kundene deres.",
 };
 
 export default function Home() {

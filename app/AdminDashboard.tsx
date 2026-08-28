@@ -15,15 +15,32 @@ function prettyDate(value: string) {
   return new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
 }
 
-export function AdminDashboard() {
+function demoDate(offset: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return osloDateKey(date);
+}
+
+function createDemoBookings(): Booking[] {
+  const createdAt = new Date().toISOString();
+  return [
+    { id: "demo-1", customerName: "Mari Hansen", email: "mari@eksempel.no", phone: "920 14 820", note: "Ønsker en kort konsultasjon først.", serviceId: "klipp", serviceName: "Dame- og herreklipp", staffId: "nora", staffName: "Nora", date: demoDate(0), time: "11:30", duration: 60, price: 790, status: "upcoming", createdAt },
+    { id: "demo-2", customerName: "Jonas Berg", email: "jonas@eksempel.no", phone: "481 22 905", note: "", serviceId: "styling", serviceName: "Vask og styling", staffId: "emil", staffName: "Emil", date: demoDate(0), time: "14:15", duration: 45, price: 590, status: "upcoming", createdAt },
+    { id: "demo-3", customerName: "Ida Nilsen", email: "ida@eksempel.no", phone: "906 38 441", note: "Kommer fem minutter tidlig.", serviceId: "klipp", serviceName: "Dame- og herreklipp", staffId: "nora", staffName: "Nora", date: demoDate(1), time: "10:15", duration: 60, price: 790, status: "upcoming", createdAt },
+    { id: "demo-4", customerName: "Andreas Moen", email: "andreas@eksempel.no", phone: "995 61 074", note: "", serviceId: "skjegg", serviceName: "Skjegg og finish", staffId: "emil", staffName: "Emil", date: demoDate(-1), time: "13:00", duration: 30, price: 450, status: "completed", createdAt },
+    { id: "demo-5", customerName: "Sara Lie", email: "sara@eksempel.no", phone: "474 09 322", note: "", serviceId: "styling", serviceName: "Vask og styling", staffId: "nora", staffName: "Nora", date: demoDate(2), time: "15:30", duration: 45, price: 590, status: "cancelled", createdAt },
+  ];
+}
+
+export function AdminDashboard({ demoMode = false }: { demoMode?: boolean }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isManager, setIsManager] = useState<boolean | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isManager, setIsManager] = useState<boolean | null>(demoMode ? true : null);
+  const [bookings, setBookings] = useState<Booking[]>(() => demoMode ? createDemoBookings() : []);
   const [filter, setFilter] = useState<"all" | BookingStatus>("upcoming");
   const [query, setQuery] = useState("");
   const [authError, setAuthError] = useState("");
   const [dataError, setDataError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!demoMode);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -59,14 +76,20 @@ export function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (demoMode) return;
     supabase.auth.getUser().then(({ data }) => loadManagerAccess(data.user));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => loadManagerAccess(session?.user ?? null), 0);
     });
     return () => listener.subscription.unsubscribe();
-  }, [loadManagerAccess]);
+  }, [demoMode, loadManagerAccess]);
 
   const refresh = async () => {
+    if (demoMode) {
+      setBookings(createDemoBookings());
+      setDataError("");
+      return;
+    }
     setIsRefreshing(true);
     try {
       setBookings(await getBookings());
@@ -110,6 +133,10 @@ export function AdminDashboard() {
   const revenue = bookings.filter((booking) => booking.status !== "cancelled").reduce((sum, booking) => sum + booking.price, 0);
 
   const changeStatus = async (id: string, status: BookingStatus) => {
+    if (demoMode) {
+      setBookings((current) => current.map((booking) => booking.id === id ? { ...booking, status } : booking));
+      return;
+    }
     setPendingBookingId(id);
     try {
       await updateBookingStatus(id, status);
@@ -123,6 +150,10 @@ export function AdminDashboard() {
 
   const remove = async (id: string) => {
     if (!window.confirm("Vil du slette denne bestillingen permanent?")) return;
+    if (demoMode) {
+      setBookings((current) => current.filter((booking) => booking.id !== id));
+      return;
+    }
     setPendingBookingId(id);
     try {
       await deleteBooking(id);
@@ -138,7 +169,7 @@ export function AdminDashboard() {
     return <main className="admin-auth-page"><div className="admin-auth-card"><span className="auth-loader" /><p>Kobler til bedriftsportalen …</p></div></main>;
   }
 
-  if (!user) {
+  if (!demoMode && !user) {
     return (
       <main className="admin-auth-page">
         <section className="admin-auth-card">
@@ -156,7 +187,7 @@ export function AdminDashboard() {
     );
   }
 
-  if (!isManager) {
+  if (!demoMode && !isManager) {
     return (
       <main className="admin-auth-page">
         <section className="admin-auth-card"><p className="eyebrow">Ingen tilgang</p><h1>Denne brukeren er ikke leder.</h1><p>Bedriftsportalen er begrenset til ledelsen.</p><button className="primary-button" type="button" onClick={signOut}>Logg ut</button></section>
@@ -168,8 +199,10 @@ export function AdminDashboard() {
     <main className="admin-page">
       <header className="admin-topbar">
         <Link className="business" href="/"><span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span><span><strong>Studio Nord</strong><small>Bedriftsportal</small></span></Link>
-        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt visning"><Link href="/">Bestill time</Link><Link className="active" aria-current="page" href="/admin">Bedriftsportal</Link></nav><button type="button" onClick={signOut}>Logg ut</button></div>
+        <div className="admin-header-actions"><nav className="surface-switch" aria-label="Bytt demovisning"><Link href="/">Kundevisning</Link><Link className="active" aria-current="page" href="/admin?demo=1">Bedriftsvisning</Link></nav>{demoMode ? <Link className="secure-login-link" href="/admin">Sikker innlogging</Link> : <button type="button" onClick={signOut}>Logg ut</button>}</div>
       </header>
+
+      {demoMode ? <section className="admin-demo-banner"><div><span>Interaktiv salgsdemo</span><strong>Slik kan bedriften styre hele bookingdagen.</strong></div><p>Eksempeldataene kan trygt endres. I en kundeløsning tilpasses tjenester, ansatte, farger og arbeidsflyt.</p></section> : null}
 
       <div className="admin-layout">
         <aside className="admin-sidebar">
@@ -177,17 +210,23 @@ export function AdminDashboard() {
           <nav aria-label="Filtrer bestillinger">
             {(["upcoming", "all", "completed", "cancelled"] as const).map((value) => <button type="button" className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)}><span>{value === "all" ? "Alle" : statusLabels[value]}</span><strong>{value === "all" ? bookings.length : bookings.filter((booking) => booking.status === value).length}</strong></button>)}
           </nav>
-          <div className="demo-security"><strong>Serverlagret</strong><p>Bestillingene er synkronisert med Supabase og tilgjengelige på alle enheter.</p></div>
+          <div className="demo-security"><strong>{demoMode ? "Trygg demovisning" : "Serverlagret"}</strong><p>{demoMode ? "Utforsk portalen uten å påvirke ekte bestillinger." : "Bestillingene er synkronisert med Supabase og tilgjengelige på alle enheter."}</p></div>
         </aside>
 
         <section className="admin-main">
-          <div className="admin-heading"><div><p className="eyebrow">Dagens oversikt</p><h1>Hei! Her er timene deres.</h1></div><div className="heading-actions"><button type="button" onClick={refresh} disabled={isRefreshing}>{isRefreshing ? "Oppdaterer …" : "↻ Oppdater"}</button><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div></div>
+          <div className="admin-heading"><div><p className="eyebrow">{demoMode ? "Eksempel på bedriftsvisningen" : "Dagens oversikt"}</p><h1>{demoMode ? "Hele bookingdagen. Ett sted." : "Hei! Her er timene deres."}</h1></div><div className="heading-actions"><button type="button" onClick={refresh} disabled={isRefreshing}>{isRefreshing ? "Oppdaterer …" : "↻ Oppdater"}</button><Link className="new-booking-link" href="/">+ Ny bestilling</Link></div></div>
           {dataError ? <p className="booking-error" role="alert">{dataError}</p> : null}
           <div className="metric-grid">
             <article><span>I dag</span><strong>{todayCount}</strong><small>bestillinger</small></article>
             <article><span>Kommende</span><strong>{upcoming.length}</strong><small>aktive timer</small></article>
             <article><span>Omsetning</span><strong>{revenue.toLocaleString("nb-NO")} kr</strong><small>i demoen</small></article>
           </div>
+
+          <section className="automation-strip" aria-label="Automatiseringer i løsningen">
+            <div><span>✓</span><p><strong>Bekreftelser</strong><small>Sendes automatisk ved ny time</small></p></div>
+            <div><span>✓</span><p><strong>Påminnelser</strong><small>Kan sendes før avtalen</small></p></div>
+            <div><span>✓</span><p><strong>Ledige tider</strong><small>Oppdateres når noe endres</small></p></div>
+          </section>
 
           <section className="booking-list-card">
             <div className="list-toolbar"><div><h2>{filter === "all" ? "Alle bestillinger" : statusLabels[filter]}</h2><p>{visible.length} bestillinger vises</p></div><label><span>Søk</span><input type="search" placeholder="Navn, tjeneste eller behandler" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>

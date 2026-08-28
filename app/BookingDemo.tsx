@@ -264,13 +264,19 @@ export function BookingDemo() {
           <span className="business-mark"><Image src="/brand/studio-nord-mark.png" width={32} height={32} alt="" priority /></span>
           <span><strong>Studio Nord</strong><small>Bestill time på nett</small></span>
         </a>
-        <nav className="surface-switch" aria-label="Bytt visning"><Link className="active" aria-current="page" href="/">Bestill time</Link><Link href="/admin">Bedriftsportal</Link></nav>
+        <nav className="surface-switch" aria-label="Bytt demovisning"><Link className="active" aria-current="page" href="/">Kundevisning</Link><Link href="/admin?demo=1">Bedriftsvisning</Link></nav>
       </header>
 
       <section className="intro">
-        <p className="eyebrow">Enklere timebestilling</p>
+        <p className="eyebrow">Eksempel på kundereisen</p>
         <h1>Finn en tid som passer.</h1>
-        <p>Velg tjeneste, behandler og tidspunkt. Hele bestillingen tar under ett minutt.</p>
+        <div className="intro-sales-copy"><p>Kunden velger tjeneste, behandler og tidspunkt på under ett minutt – på mobil eller PC.</p><Link href="/admin?demo=1">Se hva bedriften får →</Link></div>
+      </section>
+
+      <section className="sales-value-strip" aria-label="Fordeler med løsningen">
+        <div><strong>Tilpasset deres merkevare</strong><span>Logo, farger, tjenester og språk.</span></div>
+        <div><strong>Alltid oppdatert kapasitet</strong><span>Opptatte tider kan ikke dobbeltbookes.</span></div>
+        <div><strong>Mindre manuelt arbeid</strong><span>Bekreftelser og oversikt håndteres automatisk.</span></div>
       </section>
 
       <section className="booking-shell" id="booking">
@@ -386,7 +392,7 @@ export function BookingDemo() {
         </aside>
       </section>
 
-      <footer><span>Booking System Demo</span><span>Bestillinger lagres sikkert på serveren</span></footer>
+      <footer><span>Booking System Demo · eksempelbedrift</span><span>Løsningen tilpasses hver bedrifts profil og arbeidsflyt</span></footer>
     </main>
   );
 }

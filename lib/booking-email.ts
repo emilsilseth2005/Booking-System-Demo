@@ -206,7 +206,7 @@ export function createBookingEmails(booking: BookingDetails): { customer: EmailC
         `Hei ${booking.customer.name}, tiden er satt av.`,
         "Her er detaljene du sendte inn i bookingdemoen.",
         commonRows,
-        "Dette er en demonstrasjon. Ingen betaling er gjennomført, og bookingen lagres ikke i et bookingsystem.",
+        "Dette er en demonstrasjon. Ingen betaling er gjennomført.",
       ),
       text: customerText,
     },

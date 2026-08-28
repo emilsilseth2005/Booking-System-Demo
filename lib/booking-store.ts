@@ -88,29 +88,6 @@ export async function getBookings(): Promise<Booking[]> {
   return ((data ?? []) as BookingRow[]).map(fromRow);
 }
 
-export async function addBooking(booking: Booking): Promise<boolean> {
-  const { error } = await supabase.from("booking_demo_bookings").insert({
-    id: booking.id,
-    customer_name: booking.customerName.trim(),
-    email: booking.email.trim().toLowerCase(),
-    phone: booking.phone.trim(),
-    note: booking.note.trim(),
-    service_id: booking.serviceId,
-    service_name: booking.serviceName,
-    staff_id: booking.staffId,
-    staff_name: booking.staffName,
-    booking_date: booking.date,
-    booking_time: booking.time,
-    duration: booking.duration,
-    price: booking.price,
-    status: "upcoming",
-  });
-
-  if (!error) return true;
-  if (error.code === "23505") return false;
-  throw error;
-}
-
 export async function updateBookingStatus(id: string, status: BookingStatus) {
   const { error } = await supabase
     .from("booking_demo_bookings")

@@ -31,6 +31,13 @@ test("avviser ukjente tjenester, gamle datoer og honeypot-felt", () => {
   assert.equal(parseBookingRequest({ ...validPayload, website: "spam.example" }, new Date("2026-08-27T10:00:00Z")), null);
 });
 
+test("avviser tidspunkt som allerede har passert i Oslo", () => {
+  const now = new Date("2026-08-28T19:00:00Z");
+  assert.equal(parseBookingRequest({ ...validPayload, time: "11:30" }, now), null);
+  assert.equal(parseBookingRequest({ ...validPayload, time: "17:00" }, now), null);
+  assert.ok(parseBookingRequest({ ...validPayload, date: "2026-08-29", time: "09:00" }, now));
+});
+
 test("e-postmalen HTML-escaper kundedata", () => {
   const booking = parseBookingRequest({
     ...validPayload,

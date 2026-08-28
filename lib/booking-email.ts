@@ -1,3 +1,5 @@
+import { isBookingTimePast } from "./booking-time.js";
+
 export const serviceCatalog = {
   klipp: { name: "Dame- og herreklipp", duration: 60, price: 790 },
   styling: { name: "Vask og styling", duration: 45, price: 590 },
@@ -93,7 +95,7 @@ export function parseBookingRequest(value: unknown, now = new Date()): BookingDe
     !serviceId || !(serviceId in serviceCatalog) ||
     !staffId || !(staffId in staffCatalog) ||
     !date || !isRealDate(date) || date < today || date > addDaysToDateKey(today, 366) ||
-    !time || !availableTimes.has(time) ||
+    !time || !availableTimes.has(time) || isBookingTimePast(date, time, now) ||
     !name || !email || !emailPattern.test(email) ||
     !phone || !phonePattern.test(phone) || note === null
   ) {

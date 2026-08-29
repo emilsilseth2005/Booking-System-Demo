@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
   const from = process.env.BOOKING_FROM_EMAIL?.trim() || "Studio Nord <booking@klingsystems.no>";
   const businessEmail = process.env.BOOKING_BUSINESS_EMAIL?.trim() || "hei@klingsystems.no";
-  const emails = createBookingEmails(booking);
+  const emails = createBookingEmails(booking, { businessEmail });
   const resend = new Resend(apiKey);
 
   try {

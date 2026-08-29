@@ -200,6 +200,7 @@ export function BookingDemo() {
     }
 
     try {
+      const customerEmail = String(data.get("email")).trim().toLowerCase();
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -228,7 +229,9 @@ export function BookingDemo() {
       }
       if (!response.ok || !result.saved) throw new Error(result.error || "Booking failed");
       setStaffId(assignedStaff.id);
-      setConfirmationNotice(result.emailSent === false ? "Bestillingen er lagret, men e-postbekreftelsen kunne ikke sendes." : "En bekreftelse er sendt til e-postadressen din.");
+      setConfirmationNotice(result.emailSent === false
+        ? "Bestillingen er lagret, men e-postbekreftelsen kunne ikke sendes. Kontakt Studio Nord dersom du ikke mottar e-post."
+        : `Bekreftelsen er sendt til ${customerEmail}. Der finner du også en lenke for å avbestille eller endre tiden.`);
       setConfirmed(true);
     } catch {
       setBookingError("Bestillingen kunne ikke lagres. Kontroller forbindelsen og prøv igjen.");

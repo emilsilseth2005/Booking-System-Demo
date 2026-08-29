@@ -42,6 +42,11 @@ type EmailContent = {
   text: string;
 };
 
+type EmailAction = {
+  href: string;
+  label: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -137,12 +142,23 @@ function formatBookingDate(value: string) {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
-function emailShell(preview: string, heading: string, intro: string, rows: Array<[string, string]>, footer: string) {
+function emailShell(
+  preview: string,
+  heading: string,
+  intro: string,
+  rows: Array<[string, string]>,
+  footer: string,
+  action?: EmailAction,
+) {
   const details = rows.map(([label, value]) => `
     <tr>
       <td style="padding:10px 0;color:#5a6b78;font-size:14px;vertical-align:top">${escapeHtml(label)}</td>
       <td style="padding:10px 0;color:#0f2940;font-size:14px;font-weight:700;text-align:right;vertical-align:top">${escapeHtml(value)}</td>
     </tr>`).join("");
+  const actionMarkup = action ? `
+          <div style="margin:26px 0 4px;text-align:center">
+            <a href="${escapeHtml(action.href)}" style="display:inline-block;padding:14px 20px;border-radius:12px;background:#0f2940;color:#fff9d2;font-size:15px;font-weight:700;text-decoration:none">${escapeHtml(action.label)}</a>
+          </div>` : "";
 
   return `<!doctype html>
 <html lang="nb">
@@ -160,6 +176,7 @@ function emailShell(preview: string, heading: string, intro: string, rows: Array
           <h1 style="margin:20px 0 12px;font-size:30px;line-height:1.1">${escapeHtml(heading)}</h1>
           <p style="margin:0 0 24px;color:#526473;font-size:16px;line-height:1.6">${escapeHtml(intro)}</p>
           <table role="presentation" style="width:100%;border-collapse:collapse;border-top:1px solid #d9ded8;border-bottom:1px solid #d9ded8">${details}</table>
+          ${actionMarkup}
           <p style="margin:24px 0 0;color:#526473;font-size:13px;line-height:1.6">${escapeHtml(footer)}</p>
         </div>
       </div>
@@ -168,7 +185,30 @@ function emailShell(preview: string, heading: string, intro: string, rows: Array
 </html>`;
 }
 
-export function createBookingEmails(booking: BookingDetails): { customer: EmailContent; business: EmailContent } {
+function createChangeRequestUrl(booking: BookingDetails, businessEmail: string) {
+  const subject = `Avbestill eller endre booking ${booking.bookingId}`;
+  const body = [
+    "Hei Studio Nord,",
+    "",
+    "Jeg ønsker å avbestille eller endre denne timen:",
+    `Referanse: ${booking.bookingId}`,
+    `Tjeneste: ${booking.service.name}`,
+    `Dato: ${formatBookingDate(booking.date)}`,
+    `Tid: ${booking.time}`,
+    `Navn: ${booking.customer.name}`,
+    "",
+    "Skriv her om du ønsker avbestilling eller hvilket nytt tidspunkt du ønsker:",
+  ].join("\n");
+
+  return `mailto:${businessEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export function createBookingEmails(
+  booking: BookingDetails,
+  options: { businessEmail?: string } = {},
+): { customer: EmailContent; business: EmailContent } {
+  const businessEmail = options.businessEmail?.trim() || "hei@klingsystems.no";
+  const changeRequestUrl = createChangeRequestUrl(booking, businessEmail);
   const dateAndTime = `${formatBookingDate(booking.date)} kl. ${booking.time}`;
   const commonRows: Array<[string, string]> = [
     ["Tjeneste", booking.service.name],
@@ -181,6 +221,9 @@ export function createBookingEmails(booking: BookingDetails): { customer: EmailC
     "",
     "Dette er bekreftelsen på demo-bookingen din hos Studio Nord.",
     ...commonRows.map(([label, value]) => `${label}: ${value}`),
+    "",
+    `Avbestill eller endre tid: ${changeRequestUrl}`,
+    `Bookingreferanse: ${booking.bookingId}`,
     "",
     "Dette er en demonstrasjon. Ingen betaling er gjennomført.",
   ].join("\n");
@@ -204,9 +247,10 @@ export function createBookingEmails(booking: BookingDetails): { customer: EmailC
       html: emailShell(
         "Bekreftelse på demo-bookingen din",
         `Hei ${booking.customer.name}, tiden er satt av.`,
-        "Her er detaljene du sendte inn i bookingdemoen.",
+        "Her er detaljene for bookingen din.",
         commonRows,
-        "Dette er en demonstrasjon. Ingen betaling er gjennomført.",
+        `Lenken åpner en ferdig utfylt e-post til ${businessEmail}. Oppgi bookingreferansen dersom du kontakter salongen på en annen måte. Ingen betaling er gjennomført. Referanse: ${booking.bookingId}`,
+        { href: changeRequestUrl, label: "Avbestill eller endre tid" },
       ),
       text: customerText,
     },

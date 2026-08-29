@@ -49,4 +49,7 @@ test("e-postmalen HTML-escaper kundedata", () => {
   assert.doesNotMatch(emails.business.html, /<script>/);
   assert.match(emails.business.html, /&lt;script&gt;/);
   assert.match(emails.customer.text, /demonstrasjon/i);
+  assert.match(emails.customer.html, /Avbestill eller endre tid/);
+  assert.match(emails.customer.html, /mailto:hei@klingsystems\.no/);
+  assert.match(emails.customer.text, /4c35422f-8d62-4f88-8673-90b5cb0b568d/);
 });
